@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>深致學生資料系統</title>
+  <style>
+    body {
+      font-family: "Arial", sans-serif;
+      margin: 20px;
+      background: #f7f9fb;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .result-area {
+      margin-top: 10px;
+      padding: 10px;
+      background: #eef1f5;
+      border-radius: 8px;
+    }
+    .loading {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #007bff;
+      border-top: 2px solid transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- 照片上傳 -->
+    <div class="card">
+      <h2>上傳照片</h2>
+      <div class="form-group">
+        <label for="name">姓名</label>
+        <input type="text" id="name" required />
+      </div>
+      <div class="form-group">
+        <label for="email">電子郵件</label>
+        <input type="email" id="email" required />
+      </div>
+      <div class="form-group">
+        <label for="subject">科目</label>
+        <input type="text" id="subject" required />
+      </div>
+      <div class="form-group">
+        <label for="photo">選擇照片</label>
+        <input type="file" id="photo" accept="image/*" required />
+      </div>
+      <button id="uploadBtn">上傳照片</button>
+      <div id="uploadResult" class="result-area"></div>
+    </div>
+
+    <!-- 成績查詢 -->
+    <div class="card">
+      <h2>查詢成績</h2>
+      <div class="form-group">
+        <label for="queryEmail">請輸入電子郵件</label>
+        <input type="email" id="queryEmail" required />
+      </div>
+      <button id="queryBtn">查詢成績</button>
+      <div id="queryResult" class="result-area"></div>
+    </div>
+
+    <!-- 成績單下載 -->
+    <div class="card">
+      <h2>下載成績單（PDF）</h2>
+      <div class="form-group">
+        <label for="downloadEmail">請輸入電子郵件</label>
+        <input type="email" id="downloadEmail" required />
+      </div>
+      <button id="downloadBtn">下載 PDF 成績單</button>
+      <div id="downloadResult" class="result-area"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwk6VGCI19jxM8IVHYUdC8ote0xRSeodGS3Vftlu4TNZkP_uDKTydAS85xvCG2nZ_Wy/exec';
+
+    document.getElementById("uploadBtn").addEventListener("click", async function () {
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const subject = document.getElementById("subject").value.trim();
+      const photo = document.getElementById("photo").files[0];
+      const resultArea = document.getElementById("uploadResult");
+
+      if (!name || !email || !subject || !photo) {
+        resultArea.textContent = "請完整填寫所有欄位並選擇照片";
+        resultArea.style.display = "block";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function () {
+        const base64 = reader.result.split(",")[1];
+        fetch(SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "uploadPhoto",
+            name,
+            email,
+            subject,
+            image: base64
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          resultArea.textContent = data.message;
+        })
+        .catch(err => {
+          resultArea.textContent = "❌ 上傳失敗，請稍後再試";
+        });
+      };
+      reader.readAsDataURL(photo);
+    });
+
+    document.getElementById("queryBtn").addEventListener("click", function () {
+      const email = document.getElementById("queryEmail").value.trim();
+      const resultArea = document.getElementById("queryResult");
+
+      if (!email) {
+        resultArea.textContent = "請輸入電子郵件";
+        return;
+      }
+
+      resultArea.innerHTML = '<div class="loading"></div> 查詢中...';
+
+      fetch(`${SCRIPT_URL}?action=queryScore&email=${encodeURIComponent(email)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "success") {
+            resultArea.innerHTML = data.score.map(item => `${item.label}：${item.value}`).join("<br>");
+          } else {
+            resultArea.textContent = data.message;
+          }
+        })
+        .catch(() => {
+          resultArea.textContent = "❌ 查詢失敗";
+        });
+    });
+
+    document.getElementById("downloadBtn").addEventListener("click", function () {
+      const email = document.getElementById("downloadEmail").value.trim();
+      const resultArea = document.getElementById("downloadResult");
+
+      if (!email) {
+        resultArea.textContent = "請輸入電子郵件";
+        return;
+      }
+
+      resultArea.innerHTML = '<div class="loading"></div> 產生中...';
+
+      fetch(`${SCRIPT_URL}?action=downloadPdf&email=${encodeURIComponent(email)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "success") {
+            resultArea.innerHTML = `✅ 成績單已產生：<br><a href="${data.url}" target="_blank">點此下載 PDF</a>`;
+          } else {
+            resultArea.textContent = data.message;
+          }
+        })
+        .catch(() => {
+          resultArea.textContent = "❌ 發生錯誤";
+        });
+    });
+  </script>
+</body>
+</html>
